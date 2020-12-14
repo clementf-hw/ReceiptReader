@@ -1,14 +1,19 @@
 package com.cfdemo.receiptreader;
 
 
+import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.text.InputType;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -24,10 +29,13 @@ import com.huawei.hms.mlsdk.text.MLText;
 import com.huawei.hms.mlsdk.text.MLTextAnalyzer;
 
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.io.IOException;
 import java.util.List;
+
+import com.cfdemo.receiptreader.StorageHelper.*;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "ReceiptReaderLogTag";
@@ -39,19 +47,22 @@ public class MainActivity extends AppCompatActivity {
 
     ImageView imgBitmap;
     TextView txtResult;
-
+    private Context context;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        context = this;
         getToken();
 
         imgBitmap = findViewById(R.id.img_bitmap);
         txtResult = findViewById(R.id.txt_result);
-
-
+        Log.d(TAG+"bg", StorageHelper.getCredit(this)+"");
+        if (StorageHelper.getName(this) == null) {
+            getName();
+        }
     }
 
     @Override
@@ -82,12 +93,35 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void getName () {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("What is your name?");
+        final EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        builder.setView(input);
+        builder.setCancelable(false);
+        // Set up the buttons
+        builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                StorageHelper.saveName(context, input.getText().toString());
+
+            }
+        });
+
+        builder.show();
+    }
 
     public void onScan(View view) {
         Log.d(TAG, "onScan");
 
         getImage();
 
+    }
+
+    public void onProfile(View view) {
+        Intent intent = new Intent(this, ProfileActivity.class);
+        startActivity(intent);
     }
 
     private void createMLTextAnalyzer() {
@@ -116,12 +150,12 @@ public class MainActivity extends AppCompatActivity {
         return result;
     }
 
-    private double getAmount(String[] input) {
-        double result = -1;
+    private float getAmount(String[] input) {
+        float result = -1;
         for (int i = 0; i < input.length; i++) {
             Log.d(TAG+"am", input[i]);
             try {
-                result = Double.parseDouble(input[i]);
+                result = Float.parseFloat(input[i]);
                 Log.d(TAG+"am", result+"");
                 break;
             }
@@ -157,14 +191,16 @@ public class MainActivity extends AppCompatActivity {
                     else {
                         Log.d(TAG, i-1+"");
 //                        break;
-                        double amount = getAmount(blockString);
+                        float amount = getAmount(blockString);
                         if (amount >= 0) {
                             resultString = amount+"";
+                            StorageHelper.addCredit(context, amount);
                         }
                     }
                 }
 //                Log.d(TAG, text.getStringValue());
                 txtResult.setText(resultString);
+
             }
         }).addOnFailureListener(new OnFailureListener() {
             @Override

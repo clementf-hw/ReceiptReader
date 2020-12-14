@@ -32,11 +32,21 @@
             android:id="@+id/btn_scan"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="5dp"
             android:text="Start Scanning"
+            android:layout_marginHorizontal="5dp"
             android:layout_centerHorizontal="true"
             android:layout_below="@+id/img_bitmap"
             android:onClick="onScan"
+            />
+        <Button
+            android:id="@+id/btn_profile"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="My Profile"
+            android:layout_marginHorizontal="5dp"
+            android:layout_centerHorizontal="true"
+            android:layout_below="@+id/btn_scan"
+            android:onClick="onProfile"
             />
     </RelativeLayout>
 
