@@ -1,37 +1,183 @@
 package com.cfdemo.receiptreader;
 
+
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.View;
+import android.widget.ImageView;
+import android.widget.TextView;
 
-import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.huawei.agconnect.config.AGConnectServicesConfig;
+import com.huawei.hmf.tasks.OnFailureListener;
+import com.huawei.hmf.tasks.OnSuccessListener;
+import com.huawei.hmf.tasks.Task;
 import com.huawei.hms.aaid.HmsInstanceId;
+import com.huawei.hms.mlsdk.MLAnalyzerFactory;
+import com.huawei.hms.mlsdk.common.MLFrame;
+import com.huawei.hms.mlsdk.text.MLLocalTextSetting;
+import com.huawei.hms.mlsdk.text.MLText;
+import com.huawei.hms.mlsdk.text.MLTextAnalyzer;
 
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.navigation.NavController;
-import androidx.navigation.Navigation;
-import androidx.navigation.ui.AppBarConfiguration;
-import androidx.navigation.ui.NavigationUI;
+
+import java.io.IOException;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "ReceiptReaderLogTag";
     protected String pushToken;
 
+    private MLTextAnalyzer analyzer;
+
+    private static final int GET_IMAGE_REQUEST_CODE = 1222;
+
+    ImageView imgBitmap;
+    TextView txtResult;
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        BottomNavigationView navView = findViewById(R.id.nav_view);
-        // Passing each menu ID as a set of Ids because each
-        // menu should be considered as top level destinations.
-        AppBarConfiguration appBarConfiguration = new AppBarConfiguration.Builder(
-                R.id.navigation_home, R.id.navigation_dashboard, R.id.navigation_notifications)
-                .build();
-        NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment);
-        NavigationUI.setupActionBarWithNavController(this, navController, appBarConfiguration);
-        NavigationUI.setupWithNavController(navView, navController);
+
         getToken();
+
+        imgBitmap = findViewById(R.id.img_bitmap);
+        txtResult = findViewById(R.id.txt_result);
+
+
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (this.analyzer != null) {
+            try {
+                this.analyzer.stop();
+            } catch (IOException e) {
+                Log.e(TAG, "Stop failed: " + e.getMessage());
+            }
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == GET_IMAGE_REQUEST_CODE && resultCode == RESULT_OK && data != null) {
+            Uri imageUri = data.getData();
+            try {
+                Bitmap selectedBitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
+                imgBitmap.setImageBitmap(selectedBitmap);
+                asyncAnalyzeText(selectedBitmap);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
+    public void onScan(View view) {
+        Log.d(TAG, "onScan");
+
+        getImage();
+
+    }
+
+    private void createMLTextAnalyzer() {
+        MLLocalTextSetting setting = new MLLocalTextSetting.Factory()
+                .setOCRMode(MLLocalTextSetting.OCR_DETECT_MODE)
+                .setLanguage("en")
+                .create();
+
+        analyzer = MLAnalyzerFactory.getInstance().getLocalTextAnalyzer(setting);
+    }
+
+    private String stringCleanUp (String input) {
+        return input.replaceAll(":", "").trim().toLowerCase();
+    }
+
+    private boolean isAmountDescription(String[] input) {
+        boolean result = false;
+        for (int i = 0; i < input.length; i++) {
+            Log.d(TAG+"ad", input[i] );
+            String processedString = stringCleanUp(input[i]);
+            if (processedString.equals("amount") || processedString.equals("total")) {
+                result = true;
+                break;
+            }
+        }
+        return result;
+    }
+
+    private double getAmount(String[] input) {
+        double result = -1;
+        for (int i = 0; i < input.length; i++) {
+            Log.d(TAG+"am", input[i]);
+            try {
+                result = Double.parseDouble(input[i]);
+                Log.d(TAG+"am", result+"");
+                break;
+            }
+            catch (Exception e) {
+                Log.d(TAG+"am", "Not Double");
+            }
+        }
+        return result;
+    }
+
+    private void asyncAnalyzeText(Bitmap bitmap) {
+
+        if (analyzer == null) {
+            createMLTextAnalyzer();
+        }
+
+        MLFrame frame = MLFrame.fromBitmap(bitmap);
+
+        Task<MLText> task = analyzer.asyncAnalyseFrame(frame);
+        task.addOnSuccessListener(new OnSuccessListener<MLText>() {
+            @Override
+            public void onSuccess(MLText text) {
+                List<MLText.Block> blocks = text.getBlocks();
+                String resultString = "Amount not found";
+                boolean amountRecognised = false;
+                for ( int i = 0; i < blocks.size(); i++ ) {
+                    String[] blockString = text.getBlocks().get(i).getStringValue().split(" ");
+
+                    if (!amountRecognised ) {
+//                    Log.d(TAG+i, blockString);
+                        amountRecognised = isAmountDescription(blockString);
+                    }
+                    else {
+                        Log.d(TAG, i-1+"");
+//                        break;
+                        double amount = getAmount(blockString);
+                        if (amount >= 0) {
+                            resultString = amount+"";
+                        }
+                    }
+                }
+//                Log.d(TAG, text.getStringValue());
+                txtResult.setText(resultString);
+            }
+        }).addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(Exception e) {
+                txtResult.setText(e.getMessage());
+            }
+        });
+    }
+
+    private void getImage() {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("image/*");
+        startActivityForResult(intent, GET_IMAGE_REQUEST_CODE);
     }
 
     private void getToken() {
@@ -60,3 +206,4 @@ public class MainActivity extends AppCompatActivity {
     }
 
 }
+
