@@ -134,7 +134,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private String stringCleanUp (String input) {
-        return input.replaceAll(":", "").trim().toLowerCase();
+        return input.replaceAll(":", "").replaceAll("hkd|HKD", "").trim().toLowerCase();
     }
 
     private boolean isAmountDescription(String[] input) {
@@ -142,7 +142,7 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < input.length; i++) {
             Log.d(TAG+"ad", input[i] );
             String processedString = stringCleanUp(input[i]);
-            if (processedString.equals("amount") || processedString.equals("total")) {
+            if (processedString.indexOf("amount")>=0 || processedString.indexOf("total")>=0) {
                 result = true;
                 break;
             }
@@ -155,7 +155,7 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < input.length; i++) {
             Log.d(TAG+"am", input[i]);
             try {
-                result = Float.parseFloat(input[i]);
+                result = Float.parseFloat(stringCleanUp(input[i]));
                 Log.d(TAG+"am", result+"");
                 break;
             }
@@ -185,12 +185,10 @@ public class MainActivity extends AppCompatActivity {
                     String[] blockString = text.getBlocks().get(i).getStringValue().split(" ");
 
                     if (!amountRecognised ) {
-//                    Log.d(TAG+i, blockString);
                         amountRecognised = isAmountDescription(blockString);
                     }
                     else {
                         Log.d(TAG, i-1+"");
-//                        break;
                         float amount = getAmount(blockString);
                         if (amount >= 0) {
                             resultString = amount+"";
@@ -198,7 +196,6 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
                 }
-//                Log.d(TAG, text.getStringValue());
                 txtResult.setText(resultString);
 
             }
